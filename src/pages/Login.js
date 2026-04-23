@@ -6,6 +6,7 @@ export default function Login() {
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
 
   const handleLogin = async () => {
     setLoading(true)
@@ -31,9 +32,15 @@ export default function Login() {
         </div>
         <div style={{ marginBottom: 20 }}>
           <label style={{ fontSize: 13, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 6 }}>Password</label>
-          <input value={password} onChange={e => setPassword(e.target.value)} type="password" placeholder="••••••••"
-            onKeyDown={e => e.key === 'Enter' && handleLogin()}
-            style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #e5e7eb', borderRadius: 8, fontSize: 14, boxSizing: 'border-box', outline: 'none' }} />
+          <div style={{ position: 'relative' }}>
+            <input value={password} onChange={e => setPassword(e.target.value)} type={showPassword ? 'text' : 'password'} placeholder="••••••••"
+              onKeyDown={e => e.key === 'Enter' && handleLogin()}
+              style={{ width: '100%', padding: '10px 40px 10px 12px', border: '1.5px solid #e5e7eb', borderRadius: 8, fontSize: 14, boxSizing: 'border-box', outline: 'none' }} />
+            <button type="button" onClick={() => setShowPassword(v => !v)}
+              style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, padding: 0, lineHeight: 1 }}>
+              {showPassword ? '🙈' : '👁'}
+            </button>
+          </div>
         </div>
         <button onClick={handleLogin} disabled={loading}
           style={{ width: '100%', padding: '12px', background: '#1a6b3c', color: '#fff', border: 'none', borderRadius: 8, fontSize: 15, fontWeight: 600, cursor: 'pointer', opacity: loading ? 0.7 : 1 }}>
