@@ -56,14 +56,16 @@ export default function Settings() {
       active: true,
       sort_order: 999
     })
-    if (!error) {
-      const cat = newProduct.category.trim()
-      setNewProduct({ name: '', price: '', category: '' })
-      setShowAddForm(false)
-      await fetchProducts()
-      setActiveTab(cat)
-      showToast('Product added!')
+    if (error) {
+      showToast('Error: ' + (error.message || 'Could not add product'))
+      return
     }
+    const cat = newProduct.category.trim()
+    setNewProduct({ name: '', price: '', category: '' })
+    setShowAddForm(false)
+    await fetchProducts()
+    setActiveTab(cat)
+    showToast('Product added!')
   }
 
   if (loading) return <div style={{ textAlign: 'center', color: '#9ca3af', padding: 40 }}>Loading...</div>
