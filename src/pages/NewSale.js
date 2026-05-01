@@ -22,8 +22,28 @@ export default function NewSale({ onSaved }) {
   const [notes, setNotes] = useState('')
   const [saving, setSaving] = useState(false)
   const [toast, setToast] = useState(null)
+  const [draftId, setDraftId] = useState(null)
 
-  useEffect(() => { fetchProducts() }, [])
+  useEffect(() => {
+    fetchProducts()
+    const stored = localStorage.getItem('pos_current_draft')
+    if (stored) {
+      try {
+        const d = JSON.parse(stored)
+        if (d.cart) setCart(d.cart)
+        if (d.selectedCustomer) setSelectedCustomer(d.selectedCustomer)
+        if (d.custMode) setCustMode(d.custMode)
+        if (d.newName) setNewName(d.newName)
+        if (d.newPhone) setNewPhone(d.newPhone)
+        if (d.paymentMethod) setPaymentMethod(d.paymentMethod)
+        if (d.notes) setNotes(d.notes)
+        if (d.id) setDraftId(d.id)
+        localStorage.removeItem('pos_current_draft')
+      } catch (e) {
+        console.error('Error loading draft', e)
+      }
+    }
+  }, [])
 
   const fetchProducts = async () => {
     const { data } = await supabase.from('products').select('*').eq('active', true).order('category').order('sort_order')
@@ -125,8 +145,36 @@ export default function NewSale({ onSaved }) {
     }
 
     showToast('Sale recorded!')
+    
+    // If it was a draft, delete the draft
+    if (draftId) {
+      const existing = JSON.parse(localStorage.getItem('pos_drafts') || '[]')
+      localStorage.setItem('pos_drafts', JSON.stringify(existing.filter(d => d.id !== draftId)))
+    }
+
     setTimeout(() => onSaved && onSaved(), 1200)
     setSaving(false)
+  }
+
+  const saveDraft = () => {
+    if (cart.length === 0) return showToast('Cart is empty', 'error')
+    const draft = {
+      id: draftId || Date.now().toString(),
+      date: new Date().toISOString(),
+      cart,
+      selectedCustomer,
+      custMode,
+      newName,
+      newPhone,
+      paymentMethod,
+      notes,
+      total
+    }
+    const existing = JSON.parse(localStorage.getItem('pos_drafts') || '[]')
+    const updated = draftId ? existing.map(d => d.id === draftId ? draft : d) : [draft, ...existing]
+    localStorage.setItem('pos_drafts', JSON.stringify(updated))
+    showToast('Saved to drafts')
+    setTimeout(() => onSaved && onSaved(), 1200)
   }
 
   // ─── STEP: PRODUCTS ───────────────────────────────────────
@@ -228,7 +276,7 @@ export default function NewSale({ onSaved }) {
 
         {/* Toggle buttons */}
         <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-          {['walkin', 'search', 'new'].map(mode => (
+          {['new', 'walkin', 'search'].map(mode => (
             <button key={mode} onClick={() => { setCustMode(mode); clearCustomer() }}
               style={{ flex: 1, padding: '8px 4px', borderRadius: 8, border: custMode === mode ? '2px solid #1a6b3c' : '1.5px solid #e5e7eb',
                 background: custMode === mode ? '#e8f5ee' : '#fff', color: custMode === mode ? '#1a6b3c' : '#374151',
@@ -345,10 +393,16 @@ export default function NewSale({ onSaved }) {
           style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #e5e7eb', borderRadius: 8, fontSize: 14, boxSizing: 'border-box', resize: 'none', outline: 'none', fontFamily: 'inherit' }} />
       </div>
 
-      <button onClick={handleSubmit} disabled={saving}
-        style={{ width: '100%', padding: '14px', background: '#1a6b3c', color: '#fff', border: 'none', borderRadius: 10, fontSize: 15, fontWeight: 600, cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1 }}>
-        {saving ? 'Recording...' : `Record Sale — NZ$${total.toFixed(2)}`}
-      </button>
+      <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
+        <button onClick={saveDraft} disabled={saving || cart.length === 0}
+          style={{ flex: 1, padding: '14px', background: '#f3f4f6', color: '#374151', border: '1.5px solid #e5e7eb', borderRadius: 10, fontSize: 15, fontWeight: 600, cursor: (saving || cart.length === 0) ? 'not-allowed' : 'pointer' }}>
+          Save to Drafts
+        </button>
+        <button onClick={handleSubmit} disabled={saving}
+          style={{ flex: 2, padding: '14px', background: '#1a6b3c', color: '#fff', border: 'none', borderRadius: 10, fontSize: 15, fontWeight: 600, cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1 }}>
+          {saving ? 'Recording...' : `Record Sale — NZ$${total.toFixed(2)}`}
+        </button>
+      </div>
     </div>
   )
 }

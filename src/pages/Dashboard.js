@@ -7,6 +7,7 @@ export default function Dashboard() {
   const [weekData, setWeekData] = useState([])
   const [recent, setRecent] = useState([])
   const [loading, setLoading] = useState(true)
+  const [expandedId, setExpandedId] = useState(null)
 
   useEffect(() => { fetchData() }, [])
 
@@ -21,7 +22,7 @@ export default function Dashboard() {
     const [{ data: todayData }, { data: weekSales }, { data: recentData }] = await Promise.all([
       supabase.from('sales').select('total_amount, payment_method').gte('created_at', todayISO),
       supabase.from('sales').select('total_amount, created_at').gte('created_at', weekStart.toISOString()),
-      supabase.from('sales').select('total_amount, payment_method, items, created_at').order('created_at', { ascending: false }).limit(5)
+      supabase.from('sales').select('*').order('created_at', { ascending: false }).limit(5)
     ])
 
     if (todayData) {
@@ -89,17 +90,42 @@ export default function Dashboard() {
         <div style={{ fontWeight: 600, fontSize: 14, color: '#1a3a2a', marginBottom: 12 }}>Recent Transactions</div>
         {recent.length === 0
           ? <div style={{ color: '#9ca3af', fontSize: 13, textAlign: 'center', padding: '12px 0' }}>No sales recorded today yet</div>
-          : recent.map((s, i) => (
-            <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: i < recent.length - 1 ? '1px solid #f3f4f6' : 'none' }}>
-              <div>
-                <div style={{ fontSize: 13, fontWeight: 500, color: '#1a3a2a' }}>
-                  {Array.isArray(s.items) ? s.items.map(i => i.name || i.product?.name).join(', ') : 'Sale'}
+          : recent.map(s => (
+            <div key={s.id} onClick={() => setExpandedId(expandedId === s.id ? null : s.id)} style={{ background: '#fff', border: '1.5px solid #e5e7eb', borderRadius: 10, padding: '12px 14px', marginBottom: 8, cursor: 'pointer' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#1a3a2a' }}>{s.customer_name || 'Walk-in'}</div>
+                  <div style={{ fontSize: 12, color: '#6b7280', marginTop: 2 }}>
+                    {s.payment_method} · {new Date(s.created_at).toLocaleTimeString('en-NZ', { hour: '2-digit', minute: '2-digit' })}
+                  </div>
+                  {expandedId !== s.id && Array.isArray(s.items) && (
+                    <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 3 }}>
+                      {s.items.map(i => `${i.name || i.product?.name} ×${i.qty}`).join(', ')}
+                    </div>
+                  )}
                 </div>
-                <div style={{ fontSize: 11, color: '#9ca3af' }}>
-                  {s.payment_method} · {new Date(s.created_at).toLocaleTimeString('en-NZ', { hour: '2-digit', minute: '2-digit' })}
-                </div>
+                <div style={{ fontWeight: 700, color: '#1a6b3c', fontSize: 15 }}>{fmt(s.total_amount)}</div>
               </div>
-              <div style={{ fontWeight: 600, color: '#1a6b3c' }}>{fmt(s.total_amount)}</div>
+              {expandedId === s.id && (
+                <div style={{ borderTop: '1px solid #e5e7eb', marginTop: 12, paddingTop: 12 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Items</div>
+                  {Array.isArray(s.items) && s.items.map((item, idx) => (
+                    <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#374151', marginBottom: 4 }}>
+                      <span>{item.qty}x {item.name || item.product?.name}</span>
+                      <span>{fmt(item.price * item.qty)}</span>
+                    </div>
+                  ))}
+                  {s.notes && (
+                    <div style={{ marginTop: 10 }}>
+                      <div style={{ fontSize: 12, fontWeight: 600 }}>Notes</div>
+                      <div style={{ fontSize: 12, color: '#6b7280', fontStyle: 'italic', marginTop: 2 }}>"{s.notes}"</div>
+                    </div>
+                  )}
+                  {s.staff_email && (
+                    <div style={{ marginTop: 10, fontSize: 11, color: '#9ca3af' }}>Served by: {s.staff_email}</div>
+                  )}
+                </div>
+              )}
             </div>
           ))
         }

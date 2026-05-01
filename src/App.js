@@ -6,11 +6,13 @@ import NewSale from './pages/NewSale'
 import Customers from './pages/Customers'
 import Reports from './pages/Reports'
 import Settings from './pages/Settings'
+import Drafts from './pages/Drafts'
 import './App.css'
 
 const NAV = [
   { id: 'home', label: 'Home', icon: '⊞' },
   { id: 'sale', label: 'New Sale', icon: '+' },
+  { id: 'drafts', label: 'Drafts', icon: '📝' },
   { id: 'customers', label: 'Customers', icon: '👥' },
   { id: 'reports', label: 'Reports', icon: '📊' },
   { id: 'settings', label: 'Settings', icon: '⚙' },
@@ -51,6 +53,7 @@ function AppInner() {
       <div style={{ paddingBottom: 70 }}>
         {tab === 'home' && <Dashboard />}
         {tab === 'sale' && <NewSale onSaved={() => setTab('home')} />}
+        {tab === 'drafts' && <Drafts onResume={() => setTab('sale')} />}
         {tab === 'customers' && <Customers />}
         {tab === 'reports' && <Reports />}
         {tab === 'settings' && <Settings />}
