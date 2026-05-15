@@ -183,7 +183,7 @@ export default function NewSale({ onSaved }) {
       <div style={{ fontWeight: 700, fontSize: 20, color: '#1a3a2a', marginBottom: 16 }}>New Sale</div>
 
       {/* Category tabs */}
-      <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4, marginBottom: 16 }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
         {categories.map(c => (
           <button key={c} onClick={() => setSelectedCat(c)}
             style={{ padding: '6px 14px', borderRadius: 20, border: 'none', cursor: 'pointer', whiteSpace: 'nowrap', fontSize: 13, fontWeight: 600,

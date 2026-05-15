@@ -34,7 +34,7 @@ function AppInner() {
   if (!user) return <Login />
 
   return (
-    <div style={{ maxWidth: 480, margin: '0 auto', minHeight: '100vh', background: '#f4f6f4', position: 'relative' }}>
+    <div className="app-shell">
       {/* Top bar */}
       <div style={{ background: '#1a6b3c', color: '#fff', padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, zIndex: 100 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -60,7 +60,7 @@ function AppInner() {
       </div>
 
       {/* Bottom nav */}
-      <nav style={{ position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 480, background: '#fff', borderTop: '1px solid #e5e7eb', display: 'flex', zIndex: 100 }}>
+      <nav className="app-nav">
         {NAV.map(n => (
           <button key={n.id} onClick={() => setTab(n.id)}
             style={{ flex: 1, padding: '10px 4px 8px', border: 'none', background: 'none', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>

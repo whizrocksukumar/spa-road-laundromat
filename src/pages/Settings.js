@@ -50,8 +50,9 @@ export default function Settings() {
   const deleteProduct = async (product) => {
     const { count } = await supabase.from('sales').select('id', { count: 'exact', head: true }).contains('items', [{ id: product.id }])
     if (count > 0) { showToast('Cannot delete — product has existing transactions'); return }
-    await supabase.from('products').delete().eq('id', product.id)
-    setProducts(prev => prev.filter(p => p.id !== product.id))
+    const { error } = await supabase.from('products').delete().eq('id', product.id)
+    if (error) { showToast('Error deleting product: ' + error.message); return }
+    await fetchProducts()
     showToast('Product deleted')
   }
 
@@ -61,11 +62,10 @@ export default function Settings() {
       const { count } = await supabase.from('sales').select('id', { count: 'exact', head: true }).contains('items', [{ id: p.id }])
       if (count > 0) { showToast('Cannot delete — category has existing transactions'); return }
     }
-    await supabase.from('products').delete().in('id', catProducts.map(p => p.id))
-    const remaining = products.filter(p => p.category !== cat)
-    setProducts(remaining)
-    const nextCats = [...new Set(remaining.map(p => p.category))]
-    setActiveTab(nextCats[0] || null)
+    const { error } = await supabase.from('products').delete().in('id', catProducts.map(p => p.id))
+    if (error) { showToast('Error deleting category: ' + error.message); return }
+    await fetchProducts()
+    setActiveTab(prev => prev === cat ? null : prev)
     setEditingCats(prev => { const s = new Set(prev); s.delete(cat); return s })
     showToast('Category deleted')
   }
@@ -145,10 +145,10 @@ export default function Settings() {
       )}
 
       {/* Category Tabs */}
-      <div style={{ display: 'flex', gap: 6, overflowX: 'auto', marginBottom: 16, paddingBottom: 2 }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 16 }}>
         {categories.map(cat => (
           <button key={cat} onClick={() => setActiveTab(cat)}
-            style={{ padding: '7px 14px', borderRadius: 20, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap',
+            style={{ padding: '7px 14px', borderRadius: 20, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600,
               background: activeTab === cat ? '#1a6b3c' : '#f3f4f6',
               color: activeTab === cat ? '#fff' : '#6b7280' }}>
             {cat}
