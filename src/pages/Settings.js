@@ -10,6 +10,7 @@ export default function Settings() {
   const [editingCats, setEditingCats] = useState(new Set())
   const [showAddForm, setShowAddForm] = useState(false)
   const [newProduct, setNewProduct] = useState({ name: '', price: '', category: '' })
+  const [showArchived, setShowArchived] = useState(false)
 
   useEffect(() => { fetchProducts() }, [])
 
@@ -22,10 +23,14 @@ export default function Settings() {
     setLoading(false)
   }
 
-  const categories = [...new Set(products.map(p => p.category))]
+  // Only non-archived products form tabs
+  const activeProducts = products.filter(p => p.active !== false)
+  const archivedProducts = products.filter(p => p.active === false)
+  const categories = [...new Set(activeProducts.map(p => p.category))]
 
   useEffect(() => {
-    if (categories.length > 0 && activeTab === null) setActiveTab(categories[0])
+    if (categories.length > 0 && (activeTab === null || !categories.includes(activeTab)))
+      setActiveTab(categories[0])
   }, [products])
 
   const updateProduct = (id, field, value) => {
@@ -34,8 +39,8 @@ export default function Settings() {
 
   const saveCategory = async (cat) => {
     setSaving(cat)
-    for (const p of products.filter(q => q.category === cat)) {
-      await supabase.from('products').update({ name: p.name, price: p.price, active: p.active }).eq('id', p.id)
+    for (const p of products.filter(q => q.category === cat && q.active !== false)) {
+      await supabase.from('products').update({ name: p.name, price: p.price }).eq('id', p.id)
     }
     setEditingCats(prev => { const s = new Set(prev); s.delete(cat); return s })
     showToast('Saved!')
@@ -47,23 +52,48 @@ export default function Settings() {
     await fetchProducts()
   }
 
+  const archiveProduct = async (product) => {
+    const { error } = await supabase.from('products').update({ active: false }).eq('id', product.id)
+    if (error) { showToast('Error: ' + error.message); return }
+    await fetchProducts()
+    showToast('Product archived')
+  }
+
+  const restoreProduct = async (product) => {
+    const { error } = await supabase.from('products').update({ active: true }).eq('id', product.id)
+    if (error) { showToast('Error: ' + error.message); return }
+    await fetchProducts()
+    showToast('Product restored')
+  }
+
+  const checkTransactions = async (productIds) => {
+    for (const id of productIds) {
+      const { count } = await supabase.from('sales').select('id', { count: 'exact', head: true }).contains('items', [{ id }])
+      if (count > 0) return true
+    }
+    return false
+  }
+
   const deleteProduct = async (product) => {
-    const { count } = await supabase.from('sales').select('id', { count: 'exact', head: true }).contains('items', [{ id: product.id }])
-    if (count > 0) { showToast('Cannot delete — product has existing transactions'); return }
+    const hasTransactions = await checkTransactions([product.id])
+    if (hasTransactions) {
+      if (!window.confirm(`"${product.name}" has existing transactions. Transaction history will be kept but this product will be permanently removed. Delete anyway?`)) return
+    }
     const { error } = await supabase.from('products').delete().eq('id', product.id)
-    if (error) { showToast('Error deleting product: ' + error.message); return }
+    if (error) { showToast('Error: ' + error.message); return }
     await fetchProducts()
     showToast('Product deleted')
   }
 
   const deleteCategory = async (cat) => {
     const catProducts = products.filter(p => p.category === cat)
-    for (const p of catProducts) {
-      const { count } = await supabase.from('sales').select('id', { count: 'exact', head: true }).contains('items', [{ id: p.id }])
-      if (count > 0) { showToast('Cannot delete — category has existing transactions'); return }
-    }
+    const hasTransactions = await checkTransactions(catProducts.map(p => p.id))
+    const msg = hasTransactions
+      ? `"${cat}" has existing transactions. Transaction history will be kept but all products in this category will be permanently removed. Delete anyway?`
+      : `Delete entire "${cat}" category and all its products?`
+    if (!window.confirm(msg)) return
     const { error } = await supabase.from('products').delete().in('id', catProducts.map(p => p.id))
-    if (error) { showToast('Error deleting category: ' + error.message); return }
+    if (error) { showToast('Error: ' + error.message); return }
     await fetchProducts()
     setActiveTab(prev => prev === cat ? null : prev)
     setEditingCats(prev => { const s = new Set(prev); s.delete(cat); return s })
@@ -79,10 +109,7 @@ export default function Settings() {
       active: true,
       sort_order: 999
     })
-    if (error) {
-      showToast('Error: ' + (error.message || 'Could not add product'))
-      return
-    }
+    if (error) { showToast('Error: ' + (error.message || 'Could not add product')); return }
     const cat = newProduct.category.trim()
     setNewProduct({ name: '', price: '', category: '' })
     setShowAddForm(false)
@@ -93,7 +120,7 @@ export default function Settings() {
 
   if (loading) return <div style={{ textAlign: 'center', color: '#9ca3af', padding: 40 }}>Loading...</div>
 
-  const tabProducts = products.filter(p => p.category === activeTab)
+  const tabProducts = activeProducts.filter(p => p.category === activeTab)
   const isEditing = editingCats.has(activeTab)
 
   return (
@@ -172,7 +199,7 @@ export default function Settings() {
                     style={{ background: '#f3f4f6', color: '#6b7280', border: 'none', borderRadius: 7, padding: '5px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
                     Cancel
                   </button>
-                  <button onClick={() => { if (window.confirm(`Delete entire "${activeTab}" category?`)) deleteCategory(activeTab) }}
+                  <button onClick={() => deleteCategory(activeTab)}
                     style={{ background: '#fee2e2', color: '#dc2626', border: 'none', borderRadius: 7, padding: '5px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
                     Delete Category
                   </button>
@@ -197,12 +224,11 @@ export default function Settings() {
                     <input value={p.price} onChange={e => updateProduct(p.id, 'price', e.target.value)} type="number" step="0.5"
                       style={{ width: 70, padding: '7px 8px', border: '1.5px solid #e5e7eb', borderRadius: 7, fontSize: 13, outline: 'none' }} />
                   </div>
-                  <button onClick={() => updateProduct(p.id, 'active', !p.active)}
-                    style={{ padding: '6px 10px', borderRadius: 7, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 600,
-                      background: p.active ? '#e8f5ee' : '#f3f4f6', color: p.active ? '#1a6b3c' : '#9ca3af' }}>
-                    {p.active ? 'On' : 'Off'}
+                  <button onClick={() => archiveProduct(p)}
+                    style={{ padding: '6px 10px', borderRadius: 7, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 600, background: '#fef3c7', color: '#92400e' }}>
+                    Archive
                   </button>
-                  <button onClick={() => { if (window.confirm(`Delete "${p.name}"?`)) deleteProduct(p) }}
+                  <button onClick={() => deleteProduct(p)}
                     style={{ padding: '6px 9px', borderRadius: 7, border: 'none', cursor: 'pointer', fontSize: 13, background: '#fee2e2', color: '#dc2626' }}
                     title="Delete product">
                     &#x1F5D1;
@@ -212,12 +238,34 @@ export default function Settings() {
                 <>
                   <div style={{ flex: 1, padding: '7px 2px', fontSize: 13, color: '#1a3a2a' }}>{p.name}</div>
                   <div style={{ fontSize: 13, color: '#6b7280' }}>${Number(p.price).toFixed(2)}</div>
-                  <div style={{ padding: '6px 10px', borderRadius: 7, fontSize: 11, fontWeight: 600,
-                    background: p.active ? '#e8f5ee' : '#f3f4f6', color: p.active ? '#1a6b3c' : '#9ca3af' }}>
-                    {p.active ? 'On' : 'Off'}
-                  </div>
                 </>
               )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Archived Products */}
+      {archivedProducts.length > 0 && (
+        <div style={{ marginTop: 28, borderTop: '1px solid #e5e7eb', paddingTop: 16 }}>
+          <button onClick={() => setShowArchived(v => !v)}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer', padding: 0, marginBottom: showArchived ? 12 : 0 }}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: '#6b7280' }}>Archived Products ({archivedProducts.length})</span>
+            <span style={{ fontSize: 11, color: '#9ca3af' }}>{showArchived ? '▲' : '▼'}</span>
+          </button>
+          {showArchived && archivedProducts.map(p => (
+            <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, opacity: 0.7 }}>
+              <div style={{ flex: 1, fontSize: 13, color: '#6b7280' }}>{p.name}</div>
+              <div style={{ fontSize: 12, color: '#9ca3af' }}>{p.category} · ${Number(p.price).toFixed(2)}</div>
+              <button onClick={() => restoreProduct(p)}
+                style={{ padding: '5px 10px', borderRadius: 7, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 600, background: '#e8f5ee', color: '#1a6b3c' }}>
+                Restore
+              </button>
+              <button onClick={() => deleteProduct(p)}
+                style={{ padding: '5px 8px', borderRadius: 7, border: 'none', cursor: 'pointer', fontSize: 12, background: '#fee2e2', color: '#dc2626' }}
+                title="Delete permanently">
+                &#x1F5D1;
+              </button>
             </div>
           ))}
         </div>
