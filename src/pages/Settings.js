@@ -47,6 +47,29 @@ export default function Settings() {
     await fetchProducts()
   }
 
+  const deleteProduct = async (product) => {
+    const { count } = await supabase.from('sales').select('id', { count: 'exact', head: true }).contains('items', [{ id: product.id }])
+    if (count > 0) { showToast('Cannot delete — product has existing transactions'); return }
+    await supabase.from('products').delete().eq('id', product.id)
+    setProducts(prev => prev.filter(p => p.id !== product.id))
+    showToast('Product deleted')
+  }
+
+  const deleteCategory = async (cat) => {
+    const catProducts = products.filter(p => p.category === cat)
+    for (const p of catProducts) {
+      const { count } = await supabase.from('sales').select('id', { count: 'exact', head: true }).contains('items', [{ id: p.id }])
+      if (count > 0) { showToast('Cannot delete — category has existing transactions'); return }
+    }
+    await supabase.from('products').delete().in('id', catProducts.map(p => p.id))
+    const remaining = products.filter(p => p.category !== cat)
+    setProducts(remaining)
+    const nextCats = [...new Set(remaining.map(p => p.category))]
+    setActiveTab(nextCats[0] || null)
+    setEditingCats(prev => { const s = new Set(prev); s.delete(cat); return s })
+    showToast('Category deleted')
+  }
+
   const addProduct = async () => {
     if (!newProduct.name.trim() || !newProduct.price || !newProduct.category.trim()) return
     const { error } = await supabase.from('products').insert({
@@ -149,6 +172,10 @@ export default function Settings() {
                     style={{ background: '#f3f4f6', color: '#6b7280', border: 'none', borderRadius: 7, padding: '5px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
                     Cancel
                   </button>
+                  <button onClick={() => { if (window.confirm(`Delete entire "${activeTab}" category?`)) deleteCategory(activeTab) }}
+                    style={{ background: '#fee2e2', color: '#dc2626', border: 'none', borderRadius: 7, padding: '5px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                    Delete Category
+                  </button>
                 </>
               ) : (
                 <button onClick={() => setEditingCats(prev => new Set([...prev, activeTab]))}
@@ -174,6 +201,11 @@ export default function Settings() {
                     style={{ padding: '6px 10px', borderRadius: 7, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 600,
                       background: p.active ? '#e8f5ee' : '#f3f4f6', color: p.active ? '#1a6b3c' : '#9ca3af' }}>
                     {p.active ? 'On' : 'Off'}
+                  </button>
+                  <button onClick={() => { if (window.confirm(`Delete "${p.name}"?`)) deleteProduct(p) }}
+                    style={{ padding: '6px 9px', borderRadius: 7, border: 'none', cursor: 'pointer', fontSize: 13, background: '#fee2e2', color: '#dc2626' }}
+                    title="Delete product">
+                    &#x1F5D1;
                   </button>
                 </>
               ) : (
