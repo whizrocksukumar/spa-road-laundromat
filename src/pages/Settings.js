@@ -11,6 +11,7 @@ export default function Settings() {
   const [showAddForm, setShowAddForm] = useState(false)
   const [newProduct, setNewProduct] = useState({ name: '', price: '', category: '' })
   const [showArchived, setShowArchived] = useState(false)
+  const [confirm, setConfirm] = useState(null) // { message, onConfirm }
 
   useEffect(() => { fetchProducts() }, [])
 
@@ -74,30 +75,35 @@ export default function Settings() {
     return false
   }
 
+  const askConfirm = (message, onConfirm) => setConfirm({ message, onConfirm })
+
   const deleteProduct = async (product) => {
     const hasTransactions = await checkTransactions([product.id])
-    if (hasTransactions) {
-      if (!window.confirm(`"${product.name}" has existing transactions. Transaction history will be kept but this product will be permanently removed. Delete anyway?`)) return
-    }
-    const { error } = await supabase.from('products').delete().eq('id', product.id)
-    if (error) { showToast('Error: ' + error.message); return }
-    await fetchProducts()
-    showToast('Product deleted')
+    const msg = hasTransactions
+      ? `"${product.name}" has existing transactions. History will be kept but this product will be permanently removed. Delete anyway?`
+      : `Delete "${product.name}"?`
+    askConfirm(msg, async () => {
+      const { error } = await supabase.from('products').delete().eq('id', product.id)
+      if (error) { showToast('Error: ' + error.message); return }
+      await fetchProducts()
+      showToast('Product deleted')
+    })
   }
 
   const deleteCategory = async (cat) => {
     const catProducts = products.filter(p => p.category === cat)
     const hasTransactions = await checkTransactions(catProducts.map(p => p.id))
     const msg = hasTransactions
-      ? `"${cat}" has existing transactions. Transaction history will be kept but all products in this category will be permanently removed. Delete anyway?`
+      ? `"${cat}" has existing transactions. History will be kept but all products in this category will be permanently removed. Delete anyway?`
       : `Delete entire "${cat}" category and all its products?`
-    if (!window.confirm(msg)) return
-    const { error } = await supabase.from('products').delete().in('id', catProducts.map(p => p.id))
-    if (error) { showToast('Error: ' + error.message); return }
-    await fetchProducts()
-    setActiveTab(prev => prev === cat ? null : prev)
-    setEditingCats(prev => { const s = new Set(prev); s.delete(cat); return s })
-    showToast('Category deleted')
+    askConfirm(msg, async () => {
+      const { error } = await supabase.from('products').delete().in('id', catProducts.map(p => p.id))
+      if (error) { showToast('Error: ' + error.message); return }
+      await fetchProducts()
+      setActiveTab(prev => prev === cat ? null : prev)
+      setEditingCats(prev => { const s = new Set(prev); s.delete(cat); return s })
+      showToast('Category deleted')
+    })
   }
 
   const addProduct = async () => {
@@ -128,6 +134,24 @@ export default function Settings() {
       {toast && (
         <div style={{ position: 'fixed', bottom: 80, left: '50%', transform: 'translateX(-50%)', background: '#1a6b3c', color: '#fff', padding: '10px 20px', borderRadius: 8, fontSize: 14, fontWeight: 500, zIndex: 999 }}>
           {toast}
+        </div>
+      )}
+
+      {confirm && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+          <div style={{ background: '#fff', borderRadius: 12, padding: 24, maxWidth: 320, width: '100%' }}>
+            <div style={{ fontSize: 14, color: '#1a3a2a', marginBottom: 20, lineHeight: 1.5 }}>{confirm.message}</div>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button onClick={() => setConfirm(null)}
+                style={{ flex: 1, padding: '10px', background: '#f3f4f6', color: '#374151', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                Cancel
+              </button>
+              <button onClick={() => { const fn = confirm.onConfirm; setConfirm(null); fn() }}
+                style={{ flex: 1, padding: '10px', background: '#dc2626', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                Delete
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
